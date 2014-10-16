@@ -14,7 +14,7 @@ function getTokenType($value) {
 		"/^(\])$/" => "CLOSE_BRACKET",
 		"/^(=.*)$/" => "ATTR_VALUE",
 		"/^(\/\\w+)$/" => "CLOSE_TAG",
-		"/^(\\s+)$/" => "WHITESPACE"
+		"/^(\\s+)$/s" => "WHITESPACE"
 	);
 	foreach ($types as $pattern => $type) {
 		if (preg_match($pattern, $value)) {
