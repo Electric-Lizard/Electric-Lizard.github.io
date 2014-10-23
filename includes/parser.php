@@ -1,67 +1,100 @@
 <?php
 require_once "tokenizer.php";
 class Parser {
+	public function __construct() {
+
+	}
+	public function getParsedThree($rawText) {
+		$three = new Root;
+		$three->children = $this->parse($rawText);
+		return $three;
+	}
+	protected function parse($rawText, $isTokenized = false) {
+		$this->tokenizer = new Tokenizer;
+		$parsedNodes = []; // root children
+		$isTokenized? $this->tokenizer->tokens = $rawText: $this->tokenizer->tokenize($rawText);
+		while ($token = $this->tokenizer->getNextToken()) {
+			echo $this->tokenizer->position . ". $token    =>" . $this->tokenizer->getCurrentTokenType() . "\n\n";
+			switch ($this->tokenizer->getCurrentTokenType()) {
+				case Tokenizer::TOKEN_OPEN_TAG: $tag = $this->parseTag($token);
+				$tag? $parsedNodes[] = $tag: $parsedNodes = parsePlainText($parsedNodes, $token);
+				break;
+				default: $parsedNodes = $this->parsePlainText($parsedNodes, $token);
+				break;
+			}
+			var_dump($parsedNodes); echo "\n\nPosition:" . $this->tokenizer->position . "\n\n";
+		}
+		return $parsedNodes;
+	}
+	protected function parseTag($openTag) {
+		$savedPosition = $this->tokenizer->position;
+		$tagName = substr($openTag, 1);
+		if ($this->tokenizer->getNextTokenType() == Tokenizer::TOKEN_CLOSE_BRACKET) {
+			$this->tokenizer->getNextToken(); //skip "]"
+			while ($token = $this->tokenizer->getNextToken()) {
+				if ($this->tokenizer->getcurrentTokenType() == Tokenizer::TOKEN_CLOSE_TAG &&
+					$this->tokenizer->getnextTokenType() == Tokenizer::TOKEN_CLOSE_BRACKET &&
+					substr($token, 2) == $tagName) {
+					return $this->getPairTagNode($tagName, $tagContent);
+				} else {
+					$tagContent[] = $token;
+				}
+			} $this->tokenizer->position = $savedPosition;
+			echo "\n FALSE \n";
+			return false;
+		} return false;
+	}
+	protected function getPairTagNode($tagName, $tagContent) {
+		$node = new PairTag;
+		$node->nodeKind = Node::EXTERNAL_NODE;
+		$node->tagName = $tagName;
+		$node->content = $this->parse($tagContent, true);
+		return $node;
+	}
+	protected function parsePlainText($parsedNodes, $token) {
+		if (isset(end($parsedNodes)->type) && end($parsedNodes)->type == Node::NODE_PLAIN_TEXT) {
+			end($parsedNodes)->content = end($parsedNodes)->content . $token;
+		} else {
+			$node = new PlainText;
+			$node->content = $token;
+			$parsedNodes[] = $node;
+		}
+		return $parsedNodes;
+	}
+}
+class Root {
+	public function __construct() {
+		$this->children = [];
+	}
+}
+abstract class Node {
+	abstract public function __construct();
+	const INTERNAL_NODE = 1;
+	const EXTERNAL_NODE = 2;
 	const NODE_PLAIN_TEXT = 100;
 	const NODE_SINGLE_TAG = 101;
 	const NODE_PAIR_TAG = 102;
+	//public $this->type;
+	//public $this->nodeKind;
+	//public $this->children = [];
+}
+class PairTag extends Node {
 	public function __construct() {
-		$this->tokenizer = new Tokenizer;
-	}
-	public function parse($rawText, $isTokenized = false) {
-		$isTokenized? $tokens = $rawText: $tokens = $this->tokenizer->tokenize($rawText);
-		$parsedText = [];
-		foreach ($tokens as $key => $token) {
-			if (isset($position) && $key < $position) continue;
-			//switch is used for better flexibility with several tag types in future
-			switch ($this->tokenizer->getTokenType($token)) {
-				case Tokenizer::TOKEN_WHITESPACE:
-				case Tokenizer::TOKEN_STRING:
-				case Tokenizer::TOKEN_CLOSE_TAG:
-				case Tokenizer::TOKEN_CLOSE_BRACKET:
-				$parsedText = $this->consumePlainText($parsedText, $token);
-				break;
-				case Tokenizer::TOKEN_OPEN_PAIR_TAG:
-				if ($this->tokenizer->getTokenType($tokens[$key+1]) == Tokenizer::TOKEN_CLOSE_BRACKET) {
-					$tagName = substr($token, 1);
-					$results = $this->searchCloseTag($tokens, $tagName, $key+2);
-					if ($results !== false) {
-						$position = $results[0];
-						$tagContent = $results[1];
-						$parsedText = $this->consumePairTag($parsedText, $tagName, $tagContent);
-					} else $parsedText = $this->consumePlainText($parsedText, $token);
-				} else $parsedText = $this->consumePlainText($parsedText, $token);
-				break;
-			}
-		}
-		return $parsedText;
-	}
-	public function searchOpenTag($tokens, $startPos = 0, $endPos = null) {
-		foreach ($tokens as $key => $token) {
-			if ($key < $startPos || (isset($endPos) && $key > $endPos)) continue;
-			if ($this->tokenizer->getTokenType($token) == Tokenizer::TOKEN_OPEN_PAIR_TAG && $this->tokenizer->getTokenType($tokens[$key+1]) == TOKEN_CLOSE_BRACKET) {
-				return array($key + 1, substr($token, 1));
-			}
-		}
-		return false;
-	}
-	public function searchCloseTag($tokens, $tagName, $position) {
-		foreach ($tokens as $key => $token) {
-			if ($this->tokenizer->getTokenType($token) == Tokenizer::TOKEN_CLOSE_TAG &&
-				strtolower(substr($token, 2)) == strtolower($tagName) &&
-				$this->tokenizer->getTokenType($tokens[$key+1]) == Tokenizer::TOKEN_CLOSE_BRACKET) return array($key + 2, array_slice($tokens, $position, $key-$position));
-		}
-	return false;
-	}
-	public function consumePlainText($parsedText, $text) {
-		if (end($parsedText)["type"] == self::NODE_PLAIN_TEXT) {
-			$parsedText[key($parsedText)]["data"] = end($parsedText)["data"] . $text;
-		} else {
-			$parsedText[] = array("type" => self::NODE_PLAIN_TEXT, "data" => $text);
-		}
-		return $parsedText;
-	}
-	public function consumePairTag($parsedText, $tagName, $tagContent) {
-		$parsedText[] = array("type" => self::NODE_PAIR_TAG, "tagName" => $tagName, "data" => $this->parse($tagContent, true));
-		return $parsedText;
+		$this->type = self::NODE_PAIR_TAG;
+		//$this->attributes;
+		//$this->tagName;
+		//$this->tagContent;
 	}
 }
+class PlainText extends Node {
+	public function __construct() {
+		$this->type = self::NODE_PLAIN_TEXT;
+		//$this->content;
+	}
+}
+echo "<p><pre>";
+$parser = new Parser;
+$row = "Every [b]movements after sudden[/b] movements deja vu obtaction";
+$three = $parser->getParsedThree($row);
+echo "\n\n\n\n\n";
+var_dump($three);
