@@ -4,11 +4,14 @@ class Tokenizer {
 	const TOKEN_OPEN_TAG = 2;
 	const TOKEN_CLOSE_TAG = 3;
 	const TOKEN_CLOSE_BRACKET = 4;
+	const TOKEN_ATTR_VALUE = 5;
+	const TOKEN_SMILE = 6;
+	const TOKEN_URL = 7;
 	const TOKEN_STRING = 99;
 	public function __construct() {
-		$this->delimiters = '/(\[\\w+|\[\/\\w+|\]|\\s)/s';
-					//		  [tag | [/tag | ] | whitespases
-		//$this->validTags = array ("url", "b", "i", "u");
+		$this->brokenSmiles = ':\\)|;\\)|:D|;D|>:\\(|:p|:\\(|:o|8\\)';
+		$this->delimiters = '/(\[\\w+|\[\/\\w+|\]|=[^\]]+|(?<!\\w):\\w+:|'.$this->brokenSmiles.'(?!\\w)|(?<!\\w)https?:\/\/[^\\s\\[\\]\\(\\)\\<\\>]+|\\s)/su';
+					//		  [tag | [/tag | ] |                     :smile:                     | url | whitespases
 		$this->position = 0;
 		$this->isFirstTime = true;
 	}
@@ -20,7 +23,10 @@ class Tokenizer {
 			self::TOKEN_WHITESPACE => '/^\\s+$/s',
 			self::TOKEN_OPEN_TAG => '/^\[(\\w+)$/',
 			self::TOKEN_CLOSE_TAG => '/^\[\/(\\w+)$/',
-			self::TOKEN_CLOSE_BRACKET => '/^\]$/'
+			self::TOKEN_CLOSE_BRACKET => '/^\]$/',
+			self::TOKEN_ATTR_VALUE => '/^=[^\]]+$/u',
+			self::TOKEN_SMILE => '/^:\\w*:|'.$this->brokenSmiles.'$/',
+			self::TOKEN_URL => '/^(?<!\\w)https?:\/\/[^\\s\\[\\]\\(\\)\\<\\>]+$/'
 		);
 		foreach ($types as $type => $pattern) {
 			if (preg_match($pattern, $token, $matches)) {
@@ -44,19 +50,4 @@ class Tokenizer {
 	public function getNextTokenType() {
 		return $this->getTokenType($this->tokens[$this->position+1]);
 	}
-
-	/*
-	public function validateType($type, $matches) {
-
-		if ($type == self::TOKEN_OPEN_TAG || $type == self::TOKEN_CLOSE_TAG) {
-			if (in_array(strtolower($matches[1]), $this->validTags)) {
-				return $type;
-			} else {
-				return $type = self::TOKEN_STRING;
-			}
-		} else {
-			return $type;
-		}
-	}
-	*/
 }

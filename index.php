@@ -4,7 +4,7 @@ require_once "includes/parser.php";
 $parser = new Parser;
 if (!empty($_POST["someRow"])) {
 	$row = $_POST["someRow"];
-	$three = $parser->parse($row);
+	$three = $parser->getParsedThree($row);
 }
 ?>
 <form action="" method="POST">
