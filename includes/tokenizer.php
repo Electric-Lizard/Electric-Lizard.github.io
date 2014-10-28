@@ -44,6 +44,9 @@ class Tokenizer {
 			return $this->tokens[$this->position];
 		}
 	}
+	public function getCurrentToken() {
+		return $this->tokens[$this->position];
+	}
 	public function getCurrentTokenType() {
 		return $this->getTokenType($this->tokens[$this->position]);
 	}

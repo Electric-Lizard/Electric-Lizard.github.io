@@ -6,21 +6,35 @@ class Parser {
 		$this->validTags = array("b", "i", "u", "s", "left", "center", "right", "font", "size", "color", "url", "img", "spoiler");
 		$this->tagsWithAttributes = array("font", "size", "color");
 		$this->tagsWithoutAttributes = array("b", "i", "u", "s", "left", "center", "right");
+		$this->tokenizer = new Tokenizer;
 	}
 	public function getParsedThree($rawText) {
+		$this->tokenizer->tokenize($rawText);
 		$three = new Root;
-		$three->content = $this->parse($rawText);
+		$three->content = $this->parse();
 		return $three;
 	}
-	protected function parse($rawText, $isTokenized = false) {
-		$this->tokenizer = new Tokenizer;
+	protected function parse($parents = []) {
 		$parsedNodes = []; // root children
-		$isTokenized? $this->tokenizer->tokens = $rawText: $this->tokenizer->tokenize($rawText);
 		while ($token = $this->tokenizer->getNextToken()) {
 			switch ($this->tokenizer->getCurrentTokenType()) {
 				case Tokenizer::TOKEN_OPEN_TAG:
-				$tag = $this->parseTag($token);
+				$tag = $this->parseTag($token, $parents);
 				$tag? $parsedNodes[] = $tag: $parsedNodes = $this->parsePlainText($parsedNodes, $token);
+				break;
+				case Tokenizer::TOKEN_CLOSE_TAG:
+				$tagName = strtolower(substr($token, 2));
+				if ($this->tokenizer->getNextTokenType() == Tokenizer::TOKEN_CLOSE_BRACKET && in_array($tagName, $parents)) {
+					if (end($parents) == $tagName) {
+						unset($parents[key($parents)]);
+						$this->tokenizer->getNextToken(); //skip "]"
+						return $parsedNodes;
+					} else {
+						$this->tokenizer->position -= 1;
+						unset($parents[key($parents)]);
+						return $parsedNodes;
+					}
+				} else $parsedNodes = $this->parsePlainText($parsedNodes, $token);
 				break;
 				case Tokenizer::TOKEN_SMILE:
 				$smile = $this->parseSmile($token);
@@ -35,40 +49,34 @@ class Parser {
 		}
 		return $parsedNodes;
 	}
-	protected function parseTag($openTag) {
+	protected function parseTag($openTag, $parents) {
 		$savedPosition = $this->tokenizer->position;
-		$tagName = substr($openTag, 1);
-		if (!in_array(strtolower($tagName), $this->validTags)) return false;
-		if ($this->tokenizer->getNextTokenType() == Tokenizer::TOKEN_ATTR_VALUE) $attrValue = substr($this->tokenizer->getNextToken(), 1);
+		$tagName = strtolower(substr($openTag, 1));
+		$attrValue = null;
+		$parents[] = $tagName;
+		if (!in_array($tagName, $this->validTags)) return false;
+		if (in_array($tagName, $this->tagsWithAttributes) &&
+			$this->tokenizer->getNextTokenType() != Tokenizer::TOKEN_ATTR_VALUE) return false;
+		if (in_array($tagName, $this->tagsWithoutAttributes) &&
+			$this->tokenizer->getNextTokenType() != Tokenizer::TOKEN_CLOSE_BRACKET) return false;
+		if ($this->tokenizer->getNextTokenType() == Tokenizer::TOKEN_ATTR_VALUE) $attrValue = strtolower(substr($this->tokenizer->getNextToken(), 1));
 		if ($this->tokenizer->getNextTokenType() == Tokenizer::TOKEN_CLOSE_BRACKET) {
 			$this->tokenizer->getNextToken(); //skip "]"
-			while ($token = $this->tokenizer->getNextToken()) {
-				if ($this->tokenizer->getcurrentTokenType() == Tokenizer::TOKEN_CLOSE_TAG &&
-					$this->tokenizer->getnextTokenType() == Tokenizer::TOKEN_CLOSE_BRACKET &&
-					substr($token, 2) == $tagName) {
-					$this->tokenizer->getNextToken(); //skip "]"
-					if (isset($attrValue)) {
-						return $this->getPairTagNode($tagName, $tagContent, $attrValue);
-					} else return $this->getPairTagNode($tagName, $tagContent);
-				} else {
-					$tagContent[] = $token;
-				}
-			}
-			$this->tokenizer->position = $savedPosition;
-			return false;
 		} else {
 			$this->tokenizer->position = $savedPosition;
 			return false;
 		}
+
+		$tagContent = $this->parse($parents);
+		return $this->getPairTagNode($tagName, $tagContent, $attrValue);
 	}
 	protected function getPairTagNode($tagName, $tagContent, $attrValue = null) {
 		$node = new PairTag;
-		$node->nodeKind = Node::EXTERNAL_NODE;
 		$node->tagName = $tagName;
 		if (isset($attrValue)) $node->attrValue = $attrValue;
 		$position = $this->tokenizer->position;
 		$tokens = $this->tokenizer->tokens;
-		$node->content = $this->parse($tagContent, true);
+		$node->content = $tagContent;
 		$this->tokenizer->position = $position;
 		$this->tokenizer->tokens = $tokens;
 		return $node;

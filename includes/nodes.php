@@ -1,25 +1,28 @@
 <?php
 class Root {
 	public function __construct() {
-		$this->children = [];
+		$this->content = [];
+		$this->position = 0;
+	}
+	public function getNode() {
+		if ($this->position < count($this->content)) {
+			return $this->content[$this->position++];
+		} else return false;
 	}
 }
 abstract class Node {
 	abstract public function __construct();
-	const INTERNAL_NODE = 1;
-	const EXTERNAL_NODE = 2;
 	const NODE_PLAIN_TEXT = 100;
-	const NODE_SINGLE_TAG = 101;
-	const NODE_PAIR_TAG = 102;
-	const NODE_SMILE = 103;
-	const NODE_URL = 104;
+	const NODE_TAG = 101;
+	const NODE_SMILE = 102;
+	const NODE_URL = 103;
 	//public $this->type;
 	//public $this->nodeKind;
 	//public $this->children = [];
 }
 class PairTag extends Node {
 	public function __construct() {
-		$this->type = self::NODE_PAIR_TAG;
+		$this->type = self::NODE_TAG;
 		//$this->attributes;
 		//$this->tagName;
 		//$this->tagContent;
